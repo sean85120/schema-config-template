@@ -132,17 +132,17 @@ class CharacterManager(
 ):
     def __init__(
         self,
-        _CHAIN_JSON_DIRECTORY,
         character_name,
         model_date,
         model,
         default_prompt,
+        _CHAIN_JSON_DIRECTORY,
     ):
-        super().__init__(_CHAIN_JSON_DIRECTORY)
         self.character_name = character_name
         self.model_date = model_date
         self.model = model
         self.default_prompt = default_prompt
+        self._CHAIN_JSON_DIRECTORY = super().__init__(_CHAIN_JSON_DIRECTORY)
 
     def get_chain_path(self) -> str:
         return super().get_chain_path(self.character_name, self.model_date)
@@ -167,7 +167,11 @@ class CharacterManager(
 
 if __name__ == "__main__":
     kp = CharacterManager(
-        "柯文哲", "2023-10-02", "ft:gpt-3.5-turbo-0613:aist::82bfmfPv", "prompt"
+        "柯文哲",
+        "2023-10-02",
+        "ft:gpt-3.5-turbo-0613:aist::82bfmfPv",
+        "prompt",
+        chain_json_manager._CHAIN_JSON_DIRECTORY,
     )
 
     kp_chain_path = kp.get_chain_path()

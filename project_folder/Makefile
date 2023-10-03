@@ -6,5 +6,3 @@ models/DotenvSchema.py: schemas/dotenv.schema.json
 
 docker-image:
 	DOCKER_BUILDKIT=1 time docker build --progress=plain --ssh default -t cks_memorial_hall-chain-test -f Dockerfile.script .
-
-
