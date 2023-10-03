@@ -15,6 +15,6 @@
       type: 'string',
       default: '.',  // current directory
     }
-  },
+  }
 }
 

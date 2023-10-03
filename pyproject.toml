@@ -10,11 +10,13 @@ python = "^3.11"
 python-schematized-config = "^0.0.6"
 openai = "^0.28.1"
 fastapi = "^0.103.2"
+datamodel-code-generator = "^0.22.0"
 
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.4.0"
 flake8 = "^6.1.0"
+datamodel-code-generator = "^0.22.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -126,6 +126,10 @@ class ChainJsonManager(DatasetManager):
 retrieval_dataset_manager = RetrievalDatasetManager()
 chain_json_manager = ChainJsonManager()
 
+
 class CharacterManager:
     def __init__(self) -> None:
         pass
+
+
+print("ok--------------------------------------------------------------------")
