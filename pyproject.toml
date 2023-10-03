@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "langchain-cks"
+version = "0.1.0"
+description = ""
+authors = ["Sean <91415054+sean85120@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+python-schematized-config = "^0.0.6"
+openai = "^0.28.1"
+fastapi = "^0.103.2"
+
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.4.0"
+flake8 = "^6.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
