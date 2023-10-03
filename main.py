@@ -127,9 +127,52 @@ retrieval_dataset_manager = RetrievalDatasetManager()
 chain_json_manager = ChainJsonManager()
 
 
-class CharacterManager:
-    def __init__(self) -> None:
+class CharacterManager(
+    ChainJsonManager,
+):
+    def __init__(
+        self,
+        _CHAIN_JSON_DIRECTORY,
+        character_name,
+        model_date,
+        model,
+        default_prompt,
+    ):
+        super().__init__(_CHAIN_JSON_DIRECTORY)
+        self.character_name = character_name
+        self.model_date = model_date
+        self.model = model
+        self.default_prompt = default_prompt
+
+    def get_chain_path(self) -> str:
+        return super().get_chain_path(self.character_name, self.model_date)
+
+    def save_chain_json(self) -> str:
+        return super().save_chain_json(self.character_name, self.model_date)
+
+    # TODO: refactor load chain and implement this
+    def load_chain(self) -> str:
         pass
+
+    def serialize_chain_json(self) -> dict:
+        pass
+
+    def deserialize_chain_json(self, chain_json) -> dict:
+        # Deserialize the chain JSON into the appropriate attributes of the class.
+        self.character_name = chain_json.get("llm", {}).get("model", "")
+        self.model_date = ""  # You can extract this from the chain_json if it's present
+        self.model = chain_json.get("llm", {}).get("model", "")
+        self.default_prompt = ""
+
+
+if __name__ == "__main__":
+    kp = CharacterManager(
+        "柯文哲", "2023-10-02", "ft:gpt-3.5-turbo-0613:aist::82bfmfPv", "prompt"
+    )
+
+    kp_chain_path = kp.get_chain_path()
+
+    print(kp_chain_path)
 
 
 print("ok--------------------------------------------------------------------")
