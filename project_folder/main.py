@@ -77,14 +77,20 @@ class ChainJsonManager(DatasetManager):
 
     def __init__(self, base_directory=Config.DATASET_DIRECTORY):
         super().__init__(base_directory)
-        self._CHAIN_JSON_DIRECTORY = os.path.join(
+        self._base_directory = os.path.join(
             base_directory, self.CHAIN_JSON_DIRECTORY_NAME
         )
 
+    # TODO: implement isCharacterExist get_latest_chain
+    def isCharacterExist(self, character_name) -> bool:
+        return character_name in self.list_characters()
+
+    def get_latest_chain(self, character_name) -> str:
+        pass
+
     def list_characters_version(self) -> dict:
         filenames = [
-            filename.split(".")[0]
-            for filename in os.listdir(self._CHAIN_JSON_DIRECTORY)
+            filename.split(".")[0] for filename in os.listdir(self._base_directory)
         ]
         result = defaultdict(list)
         for name in filenames:
@@ -95,10 +101,10 @@ class ChainJsonManager(DatasetManager):
     def _get_chain_filename(self, name, chain_version_date) -> str:
         return f"{name}_{chain_version_date}.json"
 
-    def get_chain_path(self, name, chain_version_date) -> str:
+    def get_chain_path(self, character_name, model_date) -> str:
         return os.path.join(
-            self._CHAIN_JSON_DIRECTORY,
-            self._get_chain_filename(name, chain_version_date),
+            self._base_directory,
+            self._get_chain_filename(character_name, model_date),
         )
 
     def save_chain_json(self, character_name, current_date, chain_json_data) -> str:
@@ -112,7 +118,7 @@ class ChainJsonManager(DatasetManager):
         return output_filepath
 
     def load_example_chain_json(self, example_name="example") -> str:
-        chain_path = os.path.join(self._CHAIN_JSON_DIRECTORY, f"{example_name}.json")
+        chain_path = os.path.join(self._base_directory, f"{example_name}.json")
         with open(chain_path) as ifile:
             return json.load(ifile)
 
@@ -127,56 +133,102 @@ retrieval_dataset_manager = RetrievalDatasetManager()
 chain_json_manager = ChainJsonManager()
 
 
-class CharacterManager(
-    ChainJsonManager,
-):
+class Character:
+    def __init__(self, character_name, model_date):
+        self.character_name = character_name
+        self.model_date = model_date
+
+    def create(self):
+        pass
+
+    def get_description(self):
+        pass
+
+    def get_version(self):
+        pass
+
+
+class ChainCharacter(Character, ChainJsonManager):
     def __init__(
         self,
         character_name,
         model_date,
-        model,
-        default_prompt,
-        _CHAIN_JSON_DIRECTORY,
+        _base_directory=os.path.join(Config.DATASET_DIRECTORY, "chain_json"),
     ):
+        super().__init__(character_name, model_date)
         self.character_name = character_name
         self.model_date = model_date
-        self.model = model
-        self.default_prompt = default_prompt
-        self._CHAIN_JSON_DIRECTORY = super().__init__(_CHAIN_JSON_DIRECTORY)
+        self._base_directory = _base_directory
+
+    def create(self, model="gpt-3.5-turbo") -> None:
+        character_name = self.character_name
+        example_json_dict = chain_json_manager.load_example_chain_json()
+        with open(self.get_chain_path(), "w") as f:
+            f.write(json.dumps(example_json_dict, ensure_ascii=False))
+
+        system_message = f"""
+            Use the following pieces of context to answer the users question.
+            If you don't know the answer, please make up something based on the following contexts.
+            You are not a AI assitance, you are a human.
+            (你是{character_name}，以{character_name}的身份，用繁體中文一次回答一個問題，在提到{character_name}時，用“我”替換)
+            """
+        system_message_template = (
+            system_message
+            + """
+            \n----------------\n{context}
+            """
+        )
+
+        return "create character successfully"
 
     def get_chain_path(self) -> str:
-        return super().get_chain_path(self.character_name, self.model_date)
+        return os.path.join(
+            self._base_directory,
+            self._get_chain_filename(self.character_name, self.model_date),
+        )
+
+    def load_chain_json(self) -> str:
+        chain_path = self.get_chain_path()
+        with open(chain_path) as ifile:
+            return json.load(ifile)
 
     def save_chain_json(self) -> str:
-        return super().save_chain_json(self.character_name, self.model_date)
+        output_filepath = self.get_chain_path()
+        chain_json_data = self.load_chain_json()
+        logging.debug(f"saving chain model json: {output_filepath}")
+        with open(output_filepath, "w") as f:
+            if isinstance(chain_json_data, str):
+                f.write(chain_json_data)
+            else:  # assume json-serializable
+                f.write(json.dumps(chain_json_data, ensure_ascii=False))
+        return output_filepath
 
     # TODO: refactor load chain and implement this
     def load_chain(self) -> str:
         pass
 
     def serialize_chain_json(self) -> dict:
-        pass
+        chain_json_data = self.load_chain_json()
+        # Serialize the attributes of the class into the chain JSON.
+        for key, value in self.__dict__.items():
+            chain_json_data[key] = value
 
-    def deserialize_chain_json(self, chain_json) -> dict:
+        return chain_json_data
+
+    def deserialize_chain_json(self) -> dict:
+        chain_json_data = self.load_chain_json()
         # Deserialize the chain JSON into the appropriate attributes of the class.
-        self.character_name = chain_json.get("llm", {}).get("model", "")
-        self.model_date = ""  # You can extract this from the chain_json if it's present
-        self.model = chain_json.get("llm", {}).get("model", "")
-        self.default_prompt = ""
+        for key, value in chain_json_data.items():
+            setattr(self, key, value)
+
+        return self
 
 
 if __name__ == "__main__":
-    kp = CharacterManager(
-        "柯文哲",
-        "2023-10-02",
-        "ft:gpt-3.5-turbo-0613:aist::82bfmfPv",
-        "prompt",
-        chain_json_manager._CHAIN_JSON_DIRECTORY,
-    )
+    kp = ChainCharacter(character_name="柯文哲", model_date="2023-10-04")
+    print("kp_object_original:", kp.__dict__)
 
-    kp_chain_path = kp.get_chain_path()
-
-    print(kp_chain_path)
+    kp.create(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
 
 
 print("ok--------------------------------------------------------------------")
