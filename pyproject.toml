@@ -15,6 +15,7 @@ langchain = "^0.0.308"
 chromadb = "^0.4.13"
 unstructured = "^0.10.18"
 levenshtein = "^0.22.0"
+jq = "^1.6.0"
 
 
 [tool.poetry.group.dev.dependencies]

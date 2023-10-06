@@ -23,6 +23,7 @@ from datetime import datetime
 
 from langchain.prompts import SystemMessagePromptTemplate
 from src.schemas.models import ChainVersion
+from src.utils.gen_characters import gen_charcater_prompt_template
 from src.utils.get_chain import get_chain, pass_in_dataset
 
 
@@ -87,7 +88,7 @@ class ChainJsonManager(DatasetManager):
             base_directory, self.CHAIN_JSON_DIRECTORY_NAME
         )
 
-    def isCharacterExist(self, character_name) -> bool:
+    def is_character_exist(self, character_name) -> bool:
         return character_name in self.list_characters()
 
     def get_latest_chain(self, character_name) -> str:
@@ -124,26 +125,18 @@ class ChainJsonManager(DatasetManager):
             if isinstance(chain_json_data, str):
                 f.write(chain_json_data)
             else:  # assume json-serializable
-                json.dumps(chain_json_data, ensure_ascii=False)
+                json.dump(chain_json_data, f, ensure_ascii=False)
         return output_filepath
 
     def load_example_chain_json(self, example_name="example") -> str:
         chain_path = os.path.join(self._base_directory, f"{example_name}.json")
-        with open(chain_path) as ifile:
-            return json.load(ifile)
+        with open(chain_path) as f:
+            return json.load(f)
 
     def load_chain_json(self, character_name, model_date) -> str:
         chain_path = self.get_chain_path(character_name, model_date)
-        with open(chain_path) as ifile:
-            return json.load(ifile)
-
-    def serialize_chain_json(self, character_name, model_date) -> dict:
-        chain_json_data = self.load_chain_json(character_name, model_date)
-        # Serialize the attributes of the class into the chain JSON.
-        for key, value in self.__dict__.items():
-            chain_json_data[key] = value
-
-        return chain_json_data
+        with open(chain_path) as f:
+            return json.load(f)
 
     def deserialize_chain_json(self, character_name, model_date) -> dict:
         chain_json_data = self.load_chain_json(character_name, model_date)
@@ -167,7 +160,7 @@ class Character:
     def create(self):
         pass
 
-    def get_description(self):
+    def get_background(self):
         pass
 
     def get_versions(self):
@@ -189,32 +182,46 @@ class ChainCharacter(Character, ChainJsonManager):
         self.model_date = model_date
         self._base_directory = _base_directory
 
-    def create(self, model="gpt-3.5-turbo") -> None:
-        character_name = self.character_name
-        character_versions = self.get_versions()
+    def is_character_version_exist(self) -> bool:
+        version_str = f"{self.character_name}_{self.model_date}"
 
-        if f"{character_name}_{self.model_date}" not in character_versions:
+        if version_str in self.get_versions():
+            return True
+
+        try:
+            date = datetime.strptime(self.model_date, "%Y-%m-%d")
+            if date > datetime.today().date():
+                raise ValueError("Invalid date")
+        except ValueError:
+            raise ValueError("Incorrect data format, should be YYYY-MM-DD")
+
+        return False
+
+    def create(self) -> None:
+        pass
+
+    def create_version(self, model="gpt-3.5-turbo") -> None:
+        character_name = self.character_name
+
+        if not self.is_character_version_exist():
             example_json_dict = self.load_example_chain_json()
-            system_message = f"""
-                Use the following pieces of context to answer the users question.
-                If you don't know the answer, please make up something based on the following contexts.
-                You are not a AI assitance, you are a human.
-                (你是{character_name}，以{character_name}的身份，用繁體中文一次回答一個問題，在提到{character_name}時，用“我”替換)
-                """
-            system_message_template = system_message + "\n----------------\n{context}"
+            dataset = retrieval_dataset_manager.load_dataset(character_name)
+            description = dataset.split("敘述:")[1].split("台詞:")[0]
+
+            # Generate the prompt template
+            prompt_template = gen_charcater_prompt_template(dataset, description)
 
             # Update the example JSON dictionary
             example_json_dict.update(
                 {
                     "character_name": character_name,
                     "model_date": self.model_date,
+                    "description": description,
+                    "combine_docs_chain_kwargs": {"prompt": prompt_template},
                     "llm": {"model": model, "temperature": 0.8},
-                    "combine_docs_chain_kwargs": {
-                        "prompt": {
-                            "default_prompt": "(你是{character_name}。請你以20字回答問題，在提到{character_name}時，用“我”替換)",
-                            "human_message_template": "{question}",
-                            "system_message_template": system_message_template,
-                        }
+                    "vectorstore": {
+                        "background": dataset.split("台詞:")[1],
+                        "embeddings_model": "text-embedding-ada-002",
                     },
                 }
             )
@@ -226,13 +233,13 @@ class ChainCharacter(Character, ChainJsonManager):
 
             self.deserialize_chain_json(self.character_name, self.model_date)
 
-            return self.get_chain_path(self.character_name, self.model_date)
+            return f"{character_name}_{self.model_date}"
 
     def get_latest_version(self) -> str:
         return self.get_latest_chain(self.character_name)
 
-    def get_description(self):
-        pass
+    def get_background(self):
+        return 0
 
     def get_versions(self) -> ChainVersion:
         return self.list_characters_version()[self.character_name]
@@ -240,12 +247,11 @@ class ChainCharacter(Character, ChainJsonManager):
     def save_character(self) -> None:
         return self.save_chain_json(self.character_name, self.model_date, self.__dict__)
 
-    def response(self, query) -> str:
+    def response(self, query, model=None, prompt=None) -> str:
+        if not self.is_character_version_exist():
+            self.create_version(model=model)
         # Deserialize the chain JSON
         self.deserialize_chain_json(self.character_name, self.model_date)
-
-        # Print debugging information
-        print("self_dict:", self.__dict__)
 
         # Load chain JSON text and retrieval dataset path
         chain_json_text = self.load_chain_json(self.character_name, self.model_date)
@@ -266,18 +272,20 @@ class ChainCharacter(Character, ChainJsonManager):
         qa_chain = get_chain(
             vectorstore=vectorstore,
             system_message_template=system_message_template,
-            model=self.llm["model"],
+            model=model if model else self.llm["model"],
             temperature=self.llm["temperature"],
         )
 
-        default_prompt = str(
-            self.combine_docs_chain_kwargs["prompt"]["default_prompt"]
-        ).format(character_name=self.character_name)
+        prompt = (
+            str(self.combine_docs_chain_kwargs["prompt"]["default_prompt"])
+            if not prompt
+            else prompt
+        )
 
         # Perform the query and get the result
         result = qa_chain(
             {
-                "question": query + default_prompt,
+                "question": query + prompt,
                 "chat_history": self.memory["chat_history"],
             }
         )
@@ -295,13 +303,10 @@ if __name__ == "__main__":
     kp = ChainCharacter(character_name="柯文哲")
     print("kp_object_original:", kp.__dict__)
 
-    kp.create(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
+    kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
 
     # response = kp.response("你好")
     # print("response:", response)
-
-    latest_version = kp.get_latest_version()
-    print("latest_version:", latest_version)
 
 
 print("ok--------------------------------------------------------------------")

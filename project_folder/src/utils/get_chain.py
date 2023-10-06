@@ -2,7 +2,6 @@ import os
 
 import openai
 from dotenv import load_dotenv
-
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from langchain.document_loaders import UnstructuredFileLoader
