@@ -207,9 +207,7 @@ class ChainCharacter(Character, ChainJsonManager):
 
     def create(self, description, model="gpt-3.5-turbo") -> None:
         if self.character_name not in self.list_characters():
-            dataset_path = retrieval_dataset_manager.gen_dataset(
-                self.character_name, description
-            )
+            retrieval_dataset_manager.gen_dataset(self.character_name, description)
 
         self.create_version(model=model)
 
@@ -219,10 +217,12 @@ class ChainCharacter(Character, ChainJsonManager):
         if not self.is_character_version_exist():
             example_json_dict = self.load_example_chain_json()
             dataset = retrieval_dataset_manager.load_dataset(character_name)
-            description = dataset.split("敘述:")[1].split("台詞:")[0]
+            description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
 
             # Generate the prompt template
-            prompt_template = gen_charcater_prompt_template(dataset, description)
+            prompt_template = gen_charcater_prompt_template(
+                self.character_name, description
+            )
 
             # Update the example JSON dictionary
             example_json_dict.update(
@@ -250,9 +250,6 @@ class ChainCharacter(Character, ChainJsonManager):
 
     def get_latest_version(self) -> str:
         return self.get_latest_chain(self.character_name)
-
-    def get_background(self):
-        return 0
 
     def get_versions(self) -> ChainVersion:
         return self.list_characters_version()[self.character_name]
@@ -313,7 +310,10 @@ class ChainCharacter(Character, ChainJsonManager):
 
 
 if __name__ == "__main__":
-    kp = ChainCharacter(character_name="柯文哲")
+    kp = ChainCharacter(character_name="流口香")
+
+    kp.create()
+
     print("kp_object_original:", kp.__dict__)
 
     # kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
