@@ -190,6 +190,9 @@ class ChainCharacter(Character, ChainJsonManager):
         self.model_date = model_date
         self._base_directory = _base_directory
 
+        if not self._is_character_version_exist():
+            self.create()
+
     def get_latest_version(self) -> str:
         return self.get_latest_chain(self.character_name)
 
@@ -211,8 +214,8 @@ class ChainCharacter(Character, ChainJsonManager):
 
         return False
 
-    def create(self, description, model="gpt-3.5-turbo") -> str:
-        if self._is_character_exist(self.character_name):
+    def create(self, description=None, model="gpt-3.5-turbo") -> str:
+        if not self._is_character_exist(self.character_name):
             retrieval_dataset_manager.gen_dataset(self.character_name, description)
 
         self.create_version(model=model)
@@ -220,39 +223,34 @@ class ChainCharacter(Character, ChainJsonManager):
     def create_version(self, model="gpt-3.5-turbo") -> str:
         character_name = self.character_name
 
-        if not self._is_character_version_exist():
-            example_json_dict = self.load_example_chain_json()
-            dataset = retrieval_dataset_manager.load_dataset(character_name)
-            description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
+        example_json_dict = self.load_example_chain_json()
+        dataset = retrieval_dataset_manager.load_dataset(character_name)
+        description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
 
-            # Generate the prompt template
-            prompt_template = gen_charcater_prompt_template(
-                self.character_name, description
-            )
+        # Generate the prompt template
+        prompt_template = gen_charcater_prompt_template(
+            self.character_name, description
+        )
 
-            # Update the example JSON dictionary
-            example_json_dict.update(
-                {
-                    "character_name": character_name,
-                    "model_date": self.model_date,
-                    "description": description,
-                    "combine_docs_chain_kwargs": {"prompt": prompt_template},
-                    "llm": {"model": model, "temperature": 0.8},
-                    "vectorstore": {
-                        "background": dataset.split("台詞:")[1],
-                        "embeddings_model": "text-embedding-ada-002",
-                    },
-                }
-            )
+        # Update the example JSON dictionary
+        example_json_dict.update(
+            {
+                "character_name": character_name,
+                "model_date": self.model_date,
+                "description": description,
+                "combine_docs_chain_kwargs": {"prompt": prompt_template},
+                "llm": {"model": model, "temperature": 0.8},
+                "vectorstore": {
+                    "background": dataset.split("台詞:")[1],
+                    "embeddings_model": "text-embedding-ada-002",
+                },
+            }
+        )
 
-            with open(
-                self.get_chain_path(character_name, self.model_date), "w"
-            ) as file:
-                json.dump(example_json_dict, file, ensure_ascii=False)
+        self.save_chain_json(character_name, self.model_date, example_json_dict)
+        self.deserialize_chain_json(self.character_name, self.model_date)
 
-            self.deserialize_chain_json(self.character_name, self.model_date)
-
-            return f"{character_name}_{self.model_date}"
+        return f"{character_name}_{self.model_date}"
 
     def save_character(self) -> str:
         return self.save_chain_json(self.character_name, self.model_date, self.__dict__)
@@ -328,7 +326,7 @@ class ChainCharacter(Character, ChainJsonManager):
 
 
 if __name__ == "__main__":
-    kp = ChainCharacter(character_name="柯文哲")
+    kp = ChainCharacter(character_name="柯文哲", model_date="2021-06-13")
     print("kp_object_original:", kp.__dict__)
 
     # kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
