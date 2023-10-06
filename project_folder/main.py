@@ -23,7 +23,10 @@ from datetime import datetime
 
 from langchain.prompts import SystemMessagePromptTemplate
 from src.schemas.models import ChainVersion
-from src.utils.gen_characters import gen_charcater_prompt_template
+from src.utils.gen_characters import (
+    gen_character_dataset,
+    gen_charcater_prompt_template,
+)
 from src.utils.get_chain import get_chain, pass_in_dataset
 
 
@@ -77,6 +80,11 @@ class RetrievalDatasetManager(DatasetManager):
 
     def list_datasets(self, directory) -> List[str]:
         return [filename for filename in os.listdir(directory)]
+
+    def gen_dataset(self, character_name, description):
+        return gen_character_dataset(
+            character_name, description, self._DATASET_DIRECTORY
+        )
 
 
 class ChainJsonManager(DatasetManager):
@@ -189,7 +197,7 @@ class ChainCharacter(Character, ChainJsonManager):
             return True
 
         try:
-            date = datetime.strptime(self.model_date, "%Y-%m-%d")
+            date = datetime.strptime(self.model_date, "%Y-%m-%d").date()
             if date > datetime.today().date():
                 raise ValueError("Invalid date")
         except ValueError:
@@ -197,8 +205,13 @@ class ChainCharacter(Character, ChainJsonManager):
 
         return False
 
-    def create(self) -> None:
-        pass
+    def create(self, description, model="gpt-3.5-turbo") -> None:
+        if self.character_name not in self.list_characters():
+            dataset_path = retrieval_dataset_manager.gen_dataset(
+                self.character_name, description
+            )
+
+        self.create_version(model=model)
 
     def create_version(self, model="gpt-3.5-turbo") -> None:
         character_name = self.character_name
@@ -303,7 +316,7 @@ if __name__ == "__main__":
     kp = ChainCharacter(character_name="柯文哲")
     print("kp_object_original:", kp.__dict__)
 
-    kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
+    # kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
 
     # response = kp.response("你好")
     # print("response:", response)
