@@ -96,7 +96,7 @@ class ChainJsonManager(DatasetManager):
             base_directory, self.CHAIN_JSON_DIRECTORY_NAME
         )
 
-    def is_character_exist(self, character_name) -> bool:
+    def _is_character_exist(self, character_name) -> bool:
         return character_name in self.list_characters()
 
     def get_latest_chain(self, character_name) -> str:
@@ -190,7 +190,13 @@ class ChainCharacter(Character, ChainJsonManager):
         self.model_date = model_date
         self._base_directory = _base_directory
 
-    def is_character_version_exist(self) -> bool:
+    def get_latest_version(self) -> str:
+        return self.get_latest_chain(self.character_name)
+
+    def get_versions(self) -> ChainVersion:
+        return self.list_characters_version()[self.character_name]
+
+    def _is_character_version_exist(self) -> bool:
         version_str = f"{self.character_name}_{self.model_date}"
 
         if version_str in self.get_versions():
@@ -205,16 +211,16 @@ class ChainCharacter(Character, ChainJsonManager):
 
         return False
 
-    def create(self, description, model="gpt-3.5-turbo") -> None:
-        if self.character_name not in self.list_characters():
+    def create(self, description, model="gpt-3.5-turbo") -> str:
+        if self._is_character_exist(self.character_name):
             retrieval_dataset_manager.gen_dataset(self.character_name, description)
 
         self.create_version(model=model)
 
-    def create_version(self, model="gpt-3.5-turbo") -> None:
+    def create_version(self, model="gpt-3.5-turbo") -> str:
         character_name = self.character_name
 
-        if not self.is_character_version_exist():
+        if not self._is_character_version_exist():
             example_json_dict = self.load_example_chain_json()
             dataset = retrieval_dataset_manager.load_dataset(character_name)
             description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
@@ -248,14 +254,26 @@ class ChainCharacter(Character, ChainJsonManager):
 
             return f"{character_name}_{self.model_date}"
 
-    def get_latest_version(self) -> str:
-        return self.get_latest_chain(self.character_name)
-
-    def get_versions(self) -> ChainVersion:
-        return self.list_characters_version()[self.character_name]
-
-    def save_character(self) -> None:
+    def save_character(self) -> str:
         return self.save_chain_json(self.character_name, self.model_date, self.__dict__)
+
+    def add_background(self, input: str) -> None:
+        chain_json_data = self.load_chain_json(self.character_name, self.model_date)
+        updated_background = chain_json_data["vectorstore"]["background"] + input
+        chain_json_data.update(
+            {
+                "vectorstore": {
+                    "background": updated_background,
+                    "embeddings_model": "text-embedding-ada-002",
+                },
+            }
+        )
+
+        self.save_chain_json(self.character_name, self.model_date, chain_json_data)
+        self.deserialize_chain_json(self.character_name, self.model_date)
+
+    def set_prompt(self):
+        pass
 
     def response(self, query, model=None, prompt=None) -> str:
         if not self.is_character_version_exist():
@@ -310,10 +328,7 @@ class ChainCharacter(Character, ChainJsonManager):
 
 
 if __name__ == "__main__":
-    kp = ChainCharacter(character_name="流口香")
-
-    kp.create()
-
+    kp = ChainCharacter(character_name="柯文哲")
     print("kp_object_original:", kp.__dict__)
 
     # kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
