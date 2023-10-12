@@ -273,8 +273,21 @@ class ChainCharacter(Character, ChainJsonManager):
     def set_prompt(self):
         pass
 
+    def send_response(self, query: str, charcater_response: str, model=None) -> str:
+        if not self._is_character_version_exist():
+            self.create_version(model=model)
+        # Deserialize the chain JSON
+        self.deserialize_chain_json(self.character_name, self.model_date)
+
+        self.memory["chat_history"].append((query, charcater_response))
+
+        # Save the character
+        self.save_character()
+
+        return charcater_response
+
     def response(self, query, model=None, prompt=None) -> str:
-        if not self.is_character_version_exist():
+        if not self._is_character_version_exist():
             self.create_version(model=model)
         # Deserialize the chain JSON
         self.deserialize_chain_json(self.character_name, self.model_date)
@@ -326,13 +339,15 @@ class ChainCharacter(Character, ChainJsonManager):
 
 
 if __name__ == "__main__":
-    kp = ChainCharacter(character_name="柯文哲", model_date="2021-06-13")
+    kp = ChainCharacter(character_name="柯文哲")
     print("kp_object_original:", kp.__dict__)
 
     # kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
 
     # response = kp.response("你好")
     # print("response:", response)
+
+    # response = kp.response(query="剪刀石頭", prompt="(你是柯文哲，請猜拳，由剪刀石頭布中選擇一種出拳，並說出那種拳就好)")
 
 
 print("ok--------------------------------------------------------------------")
