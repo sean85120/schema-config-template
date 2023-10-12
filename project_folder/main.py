@@ -273,7 +273,7 @@ class ChainCharacter(Character, ChainJsonManager):
     def set_prompt(self):
         pass
 
-    def send_response(self, query: str, charcater_response: str, model=None) -> str:
+    def set_response(self, query: str, charcater_response: str, model=None) -> str:
         if not self._is_character_version_exist():
             self.create_version(model=model)
         # Deserialize the chain JSON
