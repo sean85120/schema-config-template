@@ -141,10 +141,10 @@ class JyanKen(AbstractConversationManager):
         self.speakers = speakers or []
         self.jyanken_status = jyanken_status
 
-    def add_character(self, character_name):
+    def add_character(self, character_name) -> None:
         self.speakers.append(character_name)
 
-    def remove_character(self, character_name):
+    def remove_character(self, character_name) -> None:
         self.speakers.remove(character_name)
 
     def __iter__(self):
@@ -159,7 +159,7 @@ class JyanKen(AbstractConversationManager):
         )
         return speaker
 
-    def start_janken(self):
+    def play_jyanken_round(self) -> list:
         result = []
         for _ in range(len(self.speakers)):
             speaker = self.speakers[self.current_speaker_index]
@@ -167,30 +167,30 @@ class JyanKen(AbstractConversationManager):
                 self.speakers
             )
             # jyanken
-            ken = ["r", "s", "p"]
+            ken = ["rock", "scissors", "paper"]
             ken_choice = choice(ken)
             result.append(ken_choice)
-            print(f"{speaker} choose {ken_choice}")
+            print(f"{speaker} chooses {ken_choice}")
         return result
 
-    def _is_jyanken_winner(self, combination):
-        valid_combinations = {
-            frozenset(["r", "s"]),
-            frozenset(["s", "p"]),
-            frozenset(["p", "r"]),
+    def determine_jyanken_winner(self, result: list) -> str:
+        combinations = set(result)
+        winner_combinations = {
+            frozenset(["rock", "scissors"]): "rock",
+            frozenset(["scissors", "paper"]): "scissors",
+            frozenset(["paper", "rock"]): "paper",
         }
 
-        if frozenset(combination) in valid_combinations:
-            pass
+        for combination, winner in winner_combinations.items():
+            if combinations == combination:
+                return winner
 
-        return frozenset(combination) in valid_combinations
-
-    def janken_result(self):
+    def run_jyanken_game(self) -> str:
         i = 1
         while not self.jyanken_status:
             print("i:-------------------------------------------", i)
 
-            result = self.start_janken()
+            result = self.play_jyanken_round()
 
             print("janken_result: ", result)
 
@@ -203,33 +203,11 @@ class JyanKen(AbstractConversationManager):
                 i += 1
                 print("invalid janken")
 
-        combination = set(result)
-        print("keys: ", combination)
-        if self._is_jyanken_winner(combination):
-            print("wins!")
-        else:
-            print("wrong!!")
-
-
-# if __name__ == "__main__":
-#     # Example usage:
-#     speakers = ["Alice", "Bob", "Carol"]
-#     conversation = Conversation(speakers)
-
-#     conversation.add_character("Dave")
-#     conversation.remove_character("Bob")
-
-#     # conversation.start_conversation()
-#     # print("conversation.speakers: ", conversation.speakers.__len__())
-
-#     speaker = next(conversation)
-#     print("speaker: ", speaker)
-
-#     speaker2 = next(conversation)
-#     print("speaker2: ", speaker2)
-
-#     speaker3 = next(conversation)
-#     print("speaker3: ", speaker3)
+        winner_ken = self.determine_jyanken_winner(set(result))
+        winner_indexes = [i for i, value in enumerate(result) if value == winner_ken]
+        winners_list = [self.speakers[i] for i in winner_indexes]
+        winners = ", ".join(winners_list)
+        print(f"{winners} win!")
 
 
 if __name__ == "__main__":
@@ -238,4 +216,4 @@ if __name__ == "__main__":
 
     print("status: ", jyanken.__dict__)
 
-    jyanken.janken_result()
+    jyanken.run_jyanken_game()
