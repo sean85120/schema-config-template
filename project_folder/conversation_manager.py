@@ -1,79 +1,3 @@
-# from abc import ABC, abstractmethod
-# from collections import defaultdict
-
-
-# class AbstractConversation(ABC):
-#     def __init__(self, speakers=None, speaking_status=None) -> None:
-#         self.speaking_status = speaking_status or defaultdict(str)
-#         self.speakers = speakers or []
-
-#     @abstractmethod
-#     def add_character(self) -> None:
-#         pass
-
-#     @abstractmethod
-#     def remove_character(self) -> None:
-#         pass
-
-#     @abstractmethod
-#     def assign_character(self) -> None:
-#         pass
-
-#     @abstractmethod
-#     def __iter__(self) -> None:
-#         pass
-
-#     @abstractmethod
-#     def __next__(self) -> None:
-#         pass
-
-
-# class Conversation(AbstractConversation):
-#     def __init__(self):
-#         super().__init__()
-
-#     def add_character(self, character_name: str) -> None:
-#         self.speakers.append(character_name)
-
-#     def remove_character(self, character_name: str) -> None:
-#         if character_name in self.speakers:
-#             self.speakers.remove(character_name)
-
-#     def __iter__(self):
-#         return self
-
-#     def __next__(self):
-#         if not self.speakers:
-#             raise StopIteration
-#         character = self.assign_character()
-#         if character:
-#             return character
-#         else:
-#             # If no one can speak, reset speaking_status and start over.
-#             self.speaking_status = defaultdict(str)
-#             return self.__next__()
-
-#     def assign_character(self) -> None:
-#         for character in self.speakers:
-#             if not self.speaking_status.get(character, False):
-#                 self.speaking_status[character] = True
-#                 return character
-
-#     def start_conversation(self):
-#         speaker_order = self.__iter__()
-#         speaker_order.__next__()
-#         print()
-
-
-# if __name__ == "__main__":
-#     conversation_loop = Conversation()
-#     conversation_loop.add_character("Alice")
-#     conversation_loop.add_character("Bob")
-#     conversation_loop.add_character("Carol")
-
-#     conversation_loop.start_conversation()
-
-
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from random import choice
@@ -136,10 +60,16 @@ class Conversation(AbstractConversationManager):
 
 
 class JyanKen(AbstractConversationManager):
-    def __init__(self, jyanken_status: bool = False, speakers: list = None) -> None:
+    def __init__(
+        self, jyanken_status: bool = False, speakers: list = None, host: str = None
+    ) -> None:
         super().__init__(speakers)
         self.speakers = speakers or []
         self.jyanken_status = jyanken_status
+
+        self.host = host
+
+        self.characters = [ChainCharacter(speaker) for speaker in speakers]
 
     def add_character(self, character_name) -> None:
         self.speakers.append(character_name)
@@ -187,6 +117,8 @@ class JyanKen(AbstractConversationManager):
 
     def run_jyanken_game(self) -> str:
         i = 1
+
+        draw_chats = {}
         while not self.jyanken_status:
             print("i:-------------------------------------------", i)
 
@@ -203,6 +135,17 @@ class JyanKen(AbstractConversationManager):
                 i += 1
                 print("invalid janken")
 
+                # add character
+                ## TODO: add comment while draw
+
+                for index, character in enumerate(self.characters):
+                    response = character.response(
+                        query=f"上一局你出了{result[index]}，猜拳沒有勝負,，請問下一拳要出什麼，從剪刀石頭布裡選擇一種"
+                    )
+                    draw_chats[f"{character.character_name}"] = response
+
+            print("draw_chats: ", draw_chats)
+
         winner_ken = self.determine_jyanken_winner(set(result))
         winner_indexes = [i for i, value in enumerate(result) if value == winner_ken]
         winners_list = [self.speakers[i] for i in winner_indexes]
@@ -211,7 +154,7 @@ class JyanKen(AbstractConversationManager):
 
 
 if __name__ == "__main__":
-    speakers = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"]
+    speakers = ["柯文哲", "韓國瑜", "蔡英文", "宋楚瑜"]
     jyanken = JyanKen(speakers=speakers)
 
     print("status: ", jyanken.__dict__)

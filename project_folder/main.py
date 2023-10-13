@@ -334,6 +334,7 @@ class ChainCharacter(Character, ChainJsonManager):
 
         # Save the character
         self.save_character()
+        print("result:", result["answer"])
 
         return result["answer"]
 
