@@ -204,15 +204,8 @@ class ChainCharacter(Character, ChainJsonManager):
 
         if version_str in self.get_versions():
             return True
-
-        try:
-            date = datetime.strptime(self.model_date, "%Y-%m-%d").date()
-            if date > datetime.today().date():
-                raise ValueError("Invalid date")
-        except ValueError:
-            raise ValueError("Incorrect data format, should be YYYY-MM-DD")
-
-        return False
+        else:
+            return False
 
     def create(self, description=None, model="gpt-3.5-turbo") -> str:
         if not self._is_character_exist(self.character_name):
@@ -270,8 +263,28 @@ class ChainCharacter(Character, ChainJsonManager):
         self.save_chain_json(self.character_name, self.model_date, chain_json_data)
         self.deserialize_chain_json(self.character_name, self.model_date)
 
-    def set_prompt(self):
-        pass
+    def set_prompt(self, system_message: str = None, user_message: str = None) -> None:
+        chain_json_data = self.load_chain_json(self.character_name, self.model_date)
+
+        system_prompt = (
+            "\nUse the following pieces of context to answer the users question.\nIf you don't know the answer, please make up something based on the following contexts.\nYou are not a AI assitance, you are a human.\n"
+            + system_message
+            + "\n\n----------------\n{context}\n"
+        )
+
+        user_prompt = f"({user_message})"
+
+        chain_json_data.update(
+            {
+                "combine_docs_chain_kwargs": {
+                    "prompt": {
+                        "system_message_template": system_prompt,
+                        "human_message_template": "{question}",
+                        "user_message_template": user_prompt,
+                    }
+                }
+            }
+        )
 
     def set_response(self, query: str, charcater_response: str, model=None) -> str:
         if not self._is_character_version_exist():
@@ -348,7 +361,7 @@ if __name__ == "__main__":
     # response = kp.response("你好")
     # print("response:", response)
 
-    # response = kp.response(query="剪刀石頭", prompt="(你是柯文哲，請猜拳，由剪刀石頭布中選擇一種出拳，並說出那種拳就好)")
+    response = kp.response(query="你好")
 
 
 print("ok--------------------------------------------------------------------")
