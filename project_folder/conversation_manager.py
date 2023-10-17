@@ -49,10 +49,10 @@ class Conversation(AbstractConversationManager):
             raise StopIteration
 
         if not self.host_start:
-            host_response_dict = self.host_intro()
+            query = self.host_intro()
             self.host_start = True
 
-        query = self.previous_response or list(host_response_dict.values())[0]
+        query = self.previous_response or query
 
         response = self.characters[self.current_speaker_index].response(query)
 
@@ -63,10 +63,8 @@ class Conversation(AbstractConversationManager):
         )
 
         result = []
-        result.append(host_response_dict)
-        result.append(
-            {self.characters[self.current_speaker_index - 1].character_name: response}
-        )
+        result.append(query)
+        result.append(response)
 
         return result
 
@@ -78,7 +76,7 @@ class Conversation(AbstractConversationManager):
         host = ChainCharacter(host_name)
         host_response = host.response(query=query)
 
-        return {host_name: host_response}
+        return host_response
 
     def start_conversation(self):
         for _ in range(len(self.speakers)):
