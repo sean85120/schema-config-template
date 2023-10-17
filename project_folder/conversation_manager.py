@@ -7,8 +7,8 @@ from main import ChainCharacter
 
 class AbstractConversationManager(ABC):
     def __init__(self, speakers=None) -> None:
-        self.speakers = speakers or []  # Initialize with an empty list of speakers
-        self.current_speaker_index = 0  # Initialize the current speaker
+        self.speakers = speakers or []
+        self.current_speaker_index = 0
 
     @abstractmethod
     def add_character(self, character_name):
@@ -69,10 +69,7 @@ class Conversation(AbstractConversationManager):
         host="流口香",
         query="今日新聞頭條：時力公布不分區名單，黃國昌不見蹤影，宋國鼎入列，請流口香主持人先簡述一次新聞，再邀請來賓柯文哲分享新聞的看法",
     ):
-        print("1111111111111")
         host = ChainCharacter(host)
-        print("22222222222222")
-
         host_response = host.response(query=query)
 
         return host_response

@@ -75,9 +75,12 @@ class RetrievalDatasetManager(DatasetManager):
         return f"{character_name}_dataset.txt"
 
     def get_dataset_filepath(self, character_name) -> str:
-        return os.path.join(
-            self._DATASET_DIRECTORY, self._get_dataset_filename(character_name)
-        )
+        filename = self._get_dataset_filename(character_name)
+        if not filename in self.list_characters():
+            raise FileNotFoundError(
+                f"No dataset found for character '{character_name}'."
+            )
+        return os.path.join(self._DATASET_DIRECTORY, filename)
 
     def list_datasets(self, directory) -> List[str]:
         return [filename for filename in os.listdir(directory)]
@@ -100,12 +103,34 @@ class ChainJsonManager(DatasetManager):
     def _is_character_exist(self, character_name) -> bool:
         return character_name in self.list_characters()
 
+    def _is_chain_version_exist(self, character_name, model_date) -> bool:
+        version_str = f"{character_name}_{model_date}"
+
+        if version_str in self.list_characters_version()[character_name]:
+            return True
+
+        else:
+            return False
+
+    def _create_empty_chain_file(self, character_name, current_date):
+        output_filepath = os.path.join(
+            self._base_directory,
+            self._get_chain_filename(character_name, current_date),
+        )
+        with open(output_filepath, "w") as f:
+            pass
+
     def get_latest_chain(self, character_name) -> str:
-        chain_versions = self.list_characters_version()[character_name]
+        chain_versions = self.list_characters_version().get(character_name, [])
+        if not chain_versions:
+            raise FileNotFoundError(
+                f"No chain version found for character '{character_name}'."
+            )
+
         sorted_chain_versions = sorted(chain_versions)
         return sorted_chain_versions[-1]
 
-    def list_characters(self):
+    def list_characters(self) -> List[str]:
         return self.list_characters_version().keys()
 
     def list_characters_version(self) -> dict:
@@ -118,16 +143,26 @@ class ChainJsonManager(DatasetManager):
             result[character_name].append(name)
         return result
 
-    def _get_chain_filename(self, name, chain_version_date) -> str:
-        return f"{name}_{chain_version_date}.json"
+    def _get_chain_filename(self, charcater_name, model_date) -> str:
+        return f"{charcater_name}_{model_date}.json"
 
     def get_chain_path(self, character_name, model_date) -> str:
-        return os.path.join(
+        chain_path = os.path.join(
             self._base_directory,
             self._get_chain_filename(character_name, model_date),
         )
 
+        if self._is_chain_version_exist(character_name, model_date):
+            return chain_path
+        else:
+            raise FileNotFoundError(
+                f"No chain version found for character '{character_name}_{model_date}'."
+            )
+
     def save_chain_json(self, character_name, current_date, chain_json_data) -> str:
+        if not self._is_chain_version_exist(character_name, current_date):
+            self._create_empty_chain_file(character_name, current_date)
+
         output_filepath = self.get_chain_path(character_name, str(current_date))
         logging.debug(f"saving chain model json: {output_filepath}")
         chain_json_data.pop("_base_directory", None)
@@ -145,9 +180,12 @@ class ChainJsonManager(DatasetManager):
 
     def load_chain_json(self, character_name, model_date) -> str:
         chain_path = self.get_chain_path(character_name, model_date)
+        try:
+            with open(chain_path) as f:
+                return json.load(f)
 
-        with open(chain_path) as f:
-            return json.load(f)
+        except FileNotFoundError:
+            print("the chain json file does not exist")
 
     def deserialize_chain_json(self, character_name, model_date) -> dict:
         chain_json_data = self.load_chain_json(character_name, model_date)
@@ -193,8 +231,9 @@ class ChainCharacter(Character, ChainJsonManager):
         self.model_date = model_date
         self._base_directory = _base_directory
 
-        if not self._is_character_version_exist():
+        if not self._is_chain_version_exist(self.character_name, self.model_date):
             self.create()
+        self.deserialize_chain_json(self.character_name, self.model_date)
 
     def get_latest_version(self) -> str:
         return self.get_latest_chain(self.character_name)
@@ -202,13 +241,10 @@ class ChainCharacter(Character, ChainJsonManager):
     def get_versions(self) -> ChainVersion:
         return self.list_characters_version()[self.character_name]
 
-    def _is_character_version_exist(self) -> bool:
-        version_str = f"{self.character_name}_{self.model_date}"
+    def get_description(self) -> str:
+        chain_json_data = self.load_chain_json(self.character_name, self.model_date)
 
-        if version_str in self.get_versions():
-            return True
-        else:
-            return False
+        return chain_json_data["description"]
 
     def create(self, description=None, model="gpt-3.5-turbo") -> str:
         if not self._is_character_exist(self.character_name):
@@ -218,9 +254,6 @@ class ChainCharacter(Character, ChainJsonManager):
 
     def create_version(self, model="gpt-3.5-turbo") -> str:
         character_name = self.character_name
-
-        if self._is_character_version_exist():
-            return f"{character_name}_{self.model_date}"
 
         example_json_dict = self.load_example_chain_json()
         dataset = retrieval_dataset_manager.load_dataset(character_name)
@@ -293,7 +326,7 @@ class ChainCharacter(Character, ChainJsonManager):
         )
 
     def set_response(self, query: str, charcater_response: str, model=None) -> str:
-        if not self._is_character_version_exist():
+        if not self._is_chain_version_exist(self.character_name, self.model_date):
             self.create_version(model=model)
         # Deserialize the chain JSON
         self.deserialize_chain_json(self.character_name, self.model_date)
@@ -306,7 +339,7 @@ class ChainCharacter(Character, ChainJsonManager):
         return charcater_response
 
     def response(self, query, model=None, prompt=None) -> str:
-        if not self._is_character_version_exist():
+        if not self._is_chain_version_exist(self.character_name, self.model_date):
             self.create_version(model=model)
         # Deserialize the chain JSON
         self.deserialize_chain_json(self.character_name, self.model_date)
@@ -353,7 +386,6 @@ class ChainCharacter(Character, ChainJsonManager):
 
         # Save the character
         self.save_character()
-        print("result:", result["answer"])
 
         return result["answer"]
 
@@ -366,8 +398,6 @@ if __name__ == "__main__":
 
     # response = kp.response("你好")
     # print("response:", response)
-
-    response = kp.response(query="你好")
 
 
 print("ok--------------------------------------------------------------------")
