@@ -13,13 +13,14 @@ import os
 from collections import defaultdict
 from typing import List
 
-from settings import Config
+from settings.settings import Config
 
 # create logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 from datetime import datetime
+from pathlib import Path
 
 from langchain.prompts import SystemMessagePromptTemplate
 from src.schemas.models import ChainVersion
@@ -129,6 +130,7 @@ class ChainJsonManager(DatasetManager):
     def save_chain_json(self, character_name, current_date, chain_json_data) -> str:
         output_filepath = self.get_chain_path(character_name, str(current_date))
         logging.debug(f"saving chain model json: {output_filepath}")
+        chain_json_data.pop("_base_directory", None)
         with open(output_filepath, "w") as f:
             if isinstance(chain_json_data, str):
                 f.write(chain_json_data)
@@ -143,6 +145,7 @@ class ChainJsonManager(DatasetManager):
 
     def load_chain_json(self, character_name, model_date) -> str:
         chain_path = self.get_chain_path(character_name, model_date)
+
         with open(chain_path) as f:
             return json.load(f)
 
@@ -215,6 +218,9 @@ class ChainCharacter(Character, ChainJsonManager):
 
     def create_version(self, model="gpt-3.5-turbo") -> str:
         character_name = self.character_name
+
+        if self._is_character_version_exist():
+            return f"{character_name}_{self.model_date}"
 
         example_json_dict = self.load_example_chain_json()
         dataset = retrieval_dataset_manager.load_dataset(character_name)

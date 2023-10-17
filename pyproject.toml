@@ -16,6 +16,7 @@ chromadb = "^0.4.13"
 unstructured = "^0.10.18"
 levenshtein = "^0.22.0"
 jq = "^1.6.0"
+gptcache = "^0.1.42"
 
 
 [tool.poetry.group.dev.dependencies]

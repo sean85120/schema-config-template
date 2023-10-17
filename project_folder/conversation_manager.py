@@ -31,6 +31,9 @@ class Conversation(AbstractConversationManager):
     def __init__(self, speakers):
         super().__init__(speakers)
         self.current_speaker_index = 0
+        self.host_start = False
+        self.previous_response = None
+        self.characters = [ChainCharacter(speaker) for speaker in speakers]
 
     def add_character(self, character_name):
         self.speakers.append(character_name)
@@ -44,11 +47,35 @@ class Conversation(AbstractConversationManager):
     def __next__(self):
         if not self.speakers:
             raise StopIteration
-        speaker = self.speakers[self.current_speaker_index]
+
+        if not self.host_start:
+            query = self.host_intro()
+            self.host_start = True
+
+        query = self.previous_response if self.previous_response else query
+
+        response = self.characters[self.current_speaker_index].response(query)
+
+        self.previous_response = response
+
         self.current_speaker_index = (self.current_speaker_index + 1) % len(
             self.speakers
         )
-        return speaker
+
+        return [query, response]
+
+    def host_intro(
+        self,
+        host="流口香",
+        query="今日新聞頭條：時力公布不分區名單，黃國昌不見蹤影，宋國鼎入列，請流口香主持人先簡述一次新聞，再邀請來賓柯文哲分享新聞的看法",
+    ):
+        print("1111111111111")
+        host = ChainCharacter(host)
+        print("22222222222222")
+
+        host_response = host.response(query=query)
+
+        return host_response
 
     def start_conversation(self):
         for _ in range(len(self.speakers)):
@@ -153,10 +180,20 @@ class JyanKen(AbstractConversationManager):
         print(f"{winners} win!")
 
 
+# if __name__ == "__main__":
+#     speakers = ["柯文哲", "韓國瑜", "蔡英文", "宋楚瑜"]
+#     jyanken = JyanKen(speakers=speakers)
+
+#     print("status: ", jyanken.__dict__)
+
+#     jyanken.run_jyanken_game()
+
 if __name__ == "__main__":
     speakers = ["柯文哲", "韓國瑜", "蔡英文", "宋楚瑜"]
-    jyanken = JyanKen(speakers=speakers)
+    conversation = Conversation(speakers=speakers)
 
-    print("status: ", jyanken.__dict__)
+    result = conversation.__next__()
+    print("conversation: ", result)
 
-    jyanken.run_jyanken_game()
+    # result2 = conversation.__next__()
+    # print("conversation2: ", result2)

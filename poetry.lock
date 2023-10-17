@@ -369,6 +369,17 @@ jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
+name = "cachetools"
+version = "5.3.1"
+description = "Extensible memoizing collections and decorators"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "cachetools-5.3.1-py3-none-any.whl", hash = "sha256:95ef631eeaea14ba2e36f06437f36463aac3a096799e876ee55e5cdccb102590"},
+    {file = "cachetools-5.3.1.tar.gz", hash = "sha256:dce83f2d9b4e1f732a8cd44af8e8fab2dbe46201467fc98b3ef8f269092bf62b"},
+]
+
+[[package]]
 name = "certifi"
 version = "2023.7.22"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -998,6 +1009,22 @@ pip = "*"
 
 [package.extras]
 dev = ["jsonref", "matplotlib"]
+
+[[package]]
+name = "gptcache"
+version = "0.1.42"
+description = "GPTCache, a powerful caching library that can be used to speed up and lower the cost of chat applications that rely on the LLM service. GPTCache works as a memcache for AIGC applications, similar to how Redis works for traditional applications."
+optional = false
+python-versions = ">=3.8.1"
+files = [
+    {file = "gptcache-0.1.42-py3-none-any.whl", hash = "sha256:8da93cd9fdc3a1c09aae25b688823b4a5bc28dcfa4522e33617f3f7a9e5b8bb0"},
+    {file = "gptcache-0.1.42.tar.gz", hash = "sha256:17339c41d992bd47c623c716be3bd915dba2687a0fa52aa4ab4ed9cc7cc2b256"},
+]
+
+[package.dependencies]
+cachetools = "*"
+numpy = "*"
+requests = "*"
 
 [[package]]
 name = "greenlet"
@@ -4163,4 +4190,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "c130342f9137c18ac0c4b43498359be7c9a0e2c867afa0c47b8b84ba253822a7"
+content-hash = "70922bfd24837f3ed376a2750923789f5019e3353491b39b14e35e934c6e041a"
