@@ -49,10 +49,10 @@ class Conversation(AbstractConversationManager):
             raise StopIteration
 
         if not self.host_start:
-            query = self.host_intro()
+            host_response_dict = self.host_intro()
             self.host_start = True
 
-        query = self.previous_response if self.previous_response else query
+        query = self.previous_response or list(host_response_dict.values())[0]
 
         response = self.characters[self.current_speaker_index].response(query)
 
@@ -62,17 +62,23 @@ class Conversation(AbstractConversationManager):
             self.speakers
         )
 
-        return [query, response]
+        result = []
+        result.append(host_response_dict)
+        result.append(
+            {self.characters[self.current_speaker_index - 1].character_name: response}
+        )
+
+        return result
 
     def host_intro(
         self,
-        host="流口香",
+        host_name="流口香",
         query="今日新聞頭條：時力公布不分區名單，黃國昌不見蹤影，宋國鼎入列，請流口香主持人先簡述一次新聞，再邀請來賓柯文哲分享新聞的看法",
     ):
-        host = ChainCharacter(host)
+        host = ChainCharacter(host_name)
         host_response = host.response(query=query)
 
-        return host_response
+        return {host_name: host_response}
 
     def start_conversation(self):
         for _ in range(len(self.speakers)):
@@ -189,8 +195,8 @@ if __name__ == "__main__":
     speakers = ["柯文哲", "韓國瑜", "蔡英文", "宋楚瑜"]
     conversation = Conversation(speakers=speakers)
 
-    result = conversation.__next__()
-    print("conversation: ", result)
+    # result = conversation.__next__()
+    # print("conversation: ", result)
 
     # result2 = conversation.__next__()
     # print("conversation2: ", result2)
