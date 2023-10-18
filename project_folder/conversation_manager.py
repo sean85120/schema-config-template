@@ -44,12 +44,12 @@ class Conversation(AbstractConversationManager):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self, new_topic=None):
         if not self.speakers:
             raise StopIteration
 
         if not self.host_start:
-            query = self.host_intro()
+            query = self.host_intro(news_topic=new_topic)
             self.host_start = True
 
         query = self.previous_response or query
@@ -70,9 +70,10 @@ class Conversation(AbstractConversationManager):
 
     def host_intro(
         self,
+        news_topic,
         host_name="流口香",
-        query="今日新聞頭條：時力公布不分區名單，黃國昌不見蹤影，宋國鼎入列，請流口香主持人先簡述一次新聞，再邀請來賓柯文哲分享新聞的看法",
     ):
+        query = f"今日頭條: {news_topic}，請流口香主持人先簡述一次新聞，再邀請來賓柯文哲分享新聞的看法"
         host = ChainCharacter(host_name)
         host_response = host.response(query=query)
 
@@ -191,10 +192,8 @@ class JyanKen(AbstractConversationManager):
 
 if __name__ == "__main__":
     speakers = ["柯文哲", "韓國瑜", "蔡英文", "宋楚瑜"]
+    news_topic = "台積電正式表態！放棄進駐龍科三期、將續與管理局配合另覓地建廠"
     conversation = Conversation(speakers=speakers)
 
-    # result = conversation.__next__()
-    # print("conversation: ", result)
-
-    # result2 = conversation.__next__()
-    # print("conversation2: ", result2)
+    result = conversation.__next__(news_topic)
+    print("result:", result)

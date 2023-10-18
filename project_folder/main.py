@@ -100,9 +100,6 @@ class ChainJsonManager(DatasetManager):
             base_directory, self.CHAIN_JSON_DIRECTORY_NAME
         )
 
-    def _is_character_exist(self, character_name) -> bool:
-        return character_name in self.list_characters()
-
     def _is_chain_version_exist(self, character_name, model_date) -> bool:
         version_str = f"{character_name}_{model_date}"
 
@@ -130,17 +127,14 @@ class ChainJsonManager(DatasetManager):
         sorted_chain_versions = sorted(chain_versions)
         return sorted_chain_versions[-1]
 
-    def list_characters(self) -> List[str]:
-        return self.list_characters_version().keys()
-
     def list_characters_version(self) -> dict:
         filenames = [
             filename.split(".")[0] for filename in os.listdir(self._base_directory)
         ]
         result = defaultdict(list)
-        for name in filenames:
-            character_name = name.split("_")[0]
-            result[character_name].append(name)
+        for filename in filenames:
+            character_name = filename.split("_")[0]
+            result[character_name].append(filename)
         return result
 
     def _get_chain_filename(self, charcater_name, model_date) -> str:
@@ -246,6 +240,12 @@ class ChainCharacter(Character, ChainJsonManager):
 
         return chain_json_data["description"]
 
+    def _is_character_exist(self, character_name) -> bool:
+        return (
+            f"{character_name}_dataset.txt"
+            in retrieval_dataset_manager.list_characters()
+        )
+
     def create(self, description=None, model="gpt-3.5-turbo") -> str:
         if not self._is_character_exist(self.character_name):
             retrieval_dataset_manager.gen_dataset(self.character_name, description)
@@ -255,29 +255,44 @@ class ChainCharacter(Character, ChainJsonManager):
     def create_version(self, model="gpt-3.5-turbo") -> str:
         character_name = self.character_name
 
-        example_json_dict = self.load_example_chain_json()
-        dataset = retrieval_dataset_manager.load_dataset(character_name)
-        description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
+        version_list = self.list_characters_version().get(character_name, [])
+        latest_version = version_list[-1] if version_list else None
 
-        # Generate the prompt template
-        prompt_template = gen_charcater_prompt_template(
-            self.character_name, description
-        )
+        # determine the model date
+        model_date = latest_version.split("_")[1] if latest_version else self.model_date
 
-        # Update the example JSON dictionary
-        example_json_dict.update(
-            {
-                "character_name": character_name,
-                "model_date": self.model_date,
-                "description": description,
-                "combine_docs_chain_kwargs": {"prompt": prompt_template},
-                "llm": {"model": model, "temperature": 0.8},
-                "vectorstore": {
-                    "background": dataset.split("台詞:")[1],
-                    "embeddings_model": "text-embedding-ada-002",
-                },
-            }
-        )
+        # if the latest version is the same as the current version, return the latest version
+        if latest_version == f"{self.character_name}_{self.model_date}":
+            return f"{self.character_name}_{self.model_date}"
+
+        if latest_version:
+            example_json_dict = self.load_chain_json(character_name, model_date)
+            example_json_dict["model_date"] = self.model_date
+
+        else:
+            example_json_dict = self.load_example_chain_json()
+            dataset = retrieval_dataset_manager.load_dataset(character_name)
+            description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
+
+            # Generate the prompt template
+            prompt_template = gen_charcater_prompt_template(
+                self.character_name, description
+            )
+
+            # Update the example JSON dictionary
+            example_json_dict.update(
+                {
+                    "character_name": character_name,
+                    "model_date": self.model_date,
+                    "description": description,
+                    "combine_docs_chain_kwargs": {"prompt": prompt_template},
+                    "llm": {"model": model, "temperature": 0.8},
+                    "vectorstore": {
+                        "background": dataset.split("台詞:")[1],
+                        "embeddings_model": "text-embedding-ada-002",
+                    },
+                }
+            )
 
         self.save_chain_json(character_name, self.model_date, example_json_dict)
         self.deserialize_chain_json(self.character_name, self.model_date)

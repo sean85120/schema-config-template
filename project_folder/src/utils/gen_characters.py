@@ -12,6 +12,7 @@ openai.api_key = openai_api_key
 
 
 def gen_character_dataset(character_name, description, dataset_path):
+    print("start to generate character dataset")
     prompt = f"""
     第一，請生成一個角色{character_name} 是{description}
     第二，請生成這個角色會說的三十句台詞，
