@@ -73,7 +73,7 @@ class Conversation(AbstractConversationManager):
         news_topic,
         host_name="流口香",
     ):
-        query = f"今日頭條: {news_topic}，請流口香主持人先簡述一次新聞，再邀請來賓柯文哲分享新聞的看法"
+        query = f"今日頭條: {news_topic}，請流口香主持人先簡述一次新聞，再邀請來賓賴清德分享新聞的看法"
         host = ChainCharacter(host_name)
         host_response = host.response(query=query)
 
@@ -191,8 +191,11 @@ class JyanKen(AbstractConversationManager):
 #     jyanken.run_jyanken_game()
 
 if __name__ == "__main__":
-    speakers = ["柯文哲", "韓國瑜", "蔡英文", "宋楚瑜"]
-    news_topic = "台積電正式表態！放棄進駐龍科三期、將續與管理局配合另覓地建廠"
+    speakers = [
+        "柯文哲",
+        "賴清德",
+    ]
+    news_topic = "幫郭台銘連署就給400元 新埔代表會主席王增基遭收押"
     conversation = Conversation(speakers=speakers)
 
     result = conversation.__next__(news_topic)

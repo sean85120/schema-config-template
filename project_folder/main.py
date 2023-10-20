@@ -262,12 +262,16 @@ class ChainCharacter(Character, ChainJsonManager):
         model_date = latest_version.split("_")[1] if latest_version else self.model_date
 
         # if the latest version is the same as the current version, return the latest version
-        if latest_version == f"{self.character_name}_{self.model_date}":
+        if (
+            latest_version == f"{self.character_name}_{self.model_date}"
+            and model == "gpt-3.5-turbo"
+        ):
             return f"{self.character_name}_{self.model_date}"
 
         if latest_version:
             example_json_dict = self.load_chain_json(character_name, model_date)
             example_json_dict["model_date"] = self.model_date
+            example_json_dict["llm"]["model"] = model
 
         else:
             example_json_dict = self.load_example_chain_json()
@@ -406,13 +410,11 @@ class ChainCharacter(Character, ChainJsonManager):
 
 
 if __name__ == "__main__":
-    kp = ChainCharacter(character_name="柯文哲")
-    print("kp_object_original:", kp.__dict__)
+    kp = ChainCharacter(character_name="郭台銘")
+    kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::8BOrPEZL")
 
-    # kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
-
-    # response = kp.response("你好")
-    # print("response:", response)
+    response = kp.response("你好")
+    print("response:", response)
 
 
 print("ok--------------------------------------------------------------------")
