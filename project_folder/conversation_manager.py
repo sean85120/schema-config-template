@@ -49,31 +49,33 @@ class Conversation(AbstractConversationManager):
             raise StopIteration
 
         if not self.host_start:
-            query = self.host_intro(news_topic=new_topic)
+            query = self.host_intro(
+                news_topic=new_topic,
+                guest_name=self.speakers[self.current_speaker_index],
+            )
             self.host_start = True
 
         query = self.previous_response or query
 
         response = self.characters[self.current_speaker_index].response(query)
 
+        if response.startswith("我："):
+            response = response.replace("我：", "")
+
         self.previous_response = response
 
         self.current_speaker_index = (self.current_speaker_index + 1) % len(
             self.speakers
         )
-
-        result = []
-        result.append(query)
-        result.append(response)
-
-        return result
+        return [query, response]
 
     def host_intro(
         self,
         news_topic,
         host_name="流口香",
+        guest_name="侯友宜",
     ):
-        query = f"今日頭條: {news_topic}，請流口香主持人先簡述一次新聞，再邀請來賓賴清德分享新聞的看法"
+        query = f"今日頭條: {news_topic}，請流口香主持人先簡述一次新聞，再邀請來賓{guest_name}分享新聞的看法"
         host = ChainCharacter(host_name)
         host_response = host.response(query=query)
 
@@ -192,10 +194,11 @@ class JyanKen(AbstractConversationManager):
 
 if __name__ == "__main__":
     speakers = [
+        "侯友宜",
         "柯文哲",
         "賴清德",
     ]
-    news_topic = "幫郭台銘連署就給400元 新埔代表會主席王增基遭收押"
+    news_topic = "賴清德駁登門拜訪柯文哲 王定宇PO照轟柯為何老愛說謊"
     conversation = Conversation(speakers=speakers)
 
     result = conversation.__next__(news_topic)
