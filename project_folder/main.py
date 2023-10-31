@@ -22,13 +22,15 @@ logger.setLevel(logging.DEBUG)
 from datetime import datetime
 from pathlib import Path
 
+from langchain.callbacks import get_openai_callback
 from langchain.prompts import SystemMessagePromptTemplate
 from src.schemas.models import ChainVersion
 from src.utils.gen_characters import (
     gen_character_dataset,
     gen_charcater_prompt_template,
 )
-from src.utils.get_chain import get_chain, pass_in_dataset
+from src.utils.get_chain import get_chain, pass_in_dataset, pass_in_text_as_dataset
+from src.utils.summarize_chat_history import summarize_chat_history
 
 
 class DatasetManager:
@@ -60,8 +62,8 @@ class RetrievalDatasetManager(DatasetManager):
     def load_dataset(self, character_name) -> str:
         dataset_path = self.get_dataset_filepath(character_name)
         try:
-            with open(dataset_path, "r") as f:
-                return f.read()
+            with open(dataset_path) as f:
+                return json.load(f)
         except Exception as e:
             print(f"ERROR: dataset does not exist at {dataset_path}")
             raise e
@@ -72,7 +74,7 @@ class RetrievalDatasetManager(DatasetManager):
             f.write(new_data)
 
     def _get_dataset_filename(self, character_name) -> str:
-        return f"{character_name}_dataset.txt"
+        return f"{character_name}_dataset.json"
 
     def get_dataset_filepath(self, character_name) -> str:
         filename = self._get_dataset_filename(character_name)
@@ -99,6 +101,9 @@ class ChainJsonManager(DatasetManager):
         self._base_directory = os.path.join(
             base_directory, self.CHAIN_JSON_DIRECTORY_NAME
         )
+
+    def _is_character_exist(self, character_name) -> bool:
+        return character_name in self.list_characters()
 
     def _is_chain_version_exist(self, character_name, model_date) -> bool:
         version_str = f"{character_name}_{model_date}"
@@ -127,14 +132,17 @@ class ChainJsonManager(DatasetManager):
         sorted_chain_versions = sorted(chain_versions)
         return sorted_chain_versions[-1]
 
+    # def list_characters(self) -> List[str]:
+    #     return self.list_characters_version().keys()
+
     def list_characters_version(self) -> dict:
         filenames = [
             filename.split(".")[0] for filename in os.listdir(self._base_directory)
         ]
         result = defaultdict(list)
-        for filename in filenames:
-            character_name = filename.split("_")[0]
-            result[character_name].append(filename)
+        for name in filenames:
+            character_name = name.split("_")[0]
+            result[character_name].append(name)
         return result
 
     def _get_chain_filename(self, charcater_name, model_date) -> str:
@@ -159,7 +167,6 @@ class ChainJsonManager(DatasetManager):
 
         output_filepath = self.get_chain_path(character_name, str(current_date))
         logging.debug(f"saving chain model json: {output_filepath}")
-        chain_json_data.pop("_base_directory", None)
         with open(output_filepath, "w") as f:
             if isinstance(chain_json_data, str):
                 f.write(chain_json_data)
@@ -219,15 +226,17 @@ class ChainCharacter(Character, ChainJsonManager):
         character_name,
         model_date=datetime.today().date().strftime("%Y-%m-%d"),
         _base_directory=os.path.join(Config.DATASET_DIRECTORY, "chain_json"),
+        llm_model="gpt-3.5-turbo",
+        top_k=1,
     ):
         super().__init__(character_name, model_date)
         self.character_name = character_name
         self.model_date = model_date
         self._base_directory = _base_directory
-
         if not self._is_chain_version_exist(self.character_name, self.model_date):
-            self.create()
+            self.create(model=llm_model)
         self.deserialize_chain_json(self.character_name, self.model_date)
+        self.top_k = top_k
 
     def get_latest_version(self) -> str:
         return self.get_latest_chain(self.character_name)
@@ -240,63 +249,44 @@ class ChainCharacter(Character, ChainJsonManager):
 
         return chain_json_data["description"]
 
-    def _is_character_exist(self, character_name) -> bool:
-        return (
-            f"{character_name}_dataset.txt"
-            in retrieval_dataset_manager.list_characters()
+    def create(self, description=None, model="gpt-3.5-turbo") -> str:
+        character_files_path = retrieval_dataset_manager.list_characters()
+        is_not_found = all(
+            f"{self.character_name}_dataset.json" not in path
+            for path in character_files_path
         )
 
-    def create(self, description=None, model="gpt-3.5-turbo") -> str:
-        if not self._is_character_exist(self.character_name):
+        if is_not_found:
             retrieval_dataset_manager.gen_dataset(self.character_name, description)
 
         self.create_version(model=model)
 
-    def create_version(self, model="gpt-3.5-turbo") -> str:
+    def create_version(self, model) -> str:
         character_name = self.character_name
 
-        version_list = self.list_characters_version().get(character_name, [])
-        latest_version = version_list[-1] if version_list else None
+        example_json_dict = self.load_example_chain_json()
+        dataset = retrieval_dataset_manager.load_dataset(character_name)
+        description = dataset["description"]
 
-        # determine the model date
-        model_date = latest_version.split("_")[1] if latest_version else self.model_date
+        # Generate the prompt template
+        prompt_template = gen_charcater_prompt_template(
+            self.character_name, description
+        )
 
-        # if the latest version is the same as the current version, return the latest version
-        if (
-            latest_version == f"{self.character_name}_{self.model_date}"
-            and model == "gpt-3.5-turbo"
-        ):
-            return f"{self.character_name}_{self.model_date}"
-
-        if latest_version:
-            example_json_dict = self.load_chain_json(character_name, model_date)
-            example_json_dict["model_date"] = self.model_date
-            example_json_dict["llm"]["model"] = model
-
-        else:
-            example_json_dict = self.load_example_chain_json()
-            dataset = retrieval_dataset_manager.load_dataset(character_name)
-            description = dataset.split("敘述:")[1].split("台詞:")[0].strip()
-
-            # Generate the prompt template
-            prompt_template = gen_charcater_prompt_template(
-                self.character_name, description
-            )
-
-            # Update the example JSON dictionary
-            example_json_dict.update(
-                {
-                    "character_name": character_name,
-                    "model_date": self.model_date,
-                    "description": description,
-                    "combine_docs_chain_kwargs": {"prompt": prompt_template},
-                    "llm": {"model": model, "temperature": 0.8},
-                    "vectorstore": {
-                        "background": dataset.split("台詞:")[1],
-                        "embeddings_model": "text-embedding-ada-002",
-                    },
-                }
-            )
+        # Update the example JSON dictionary
+        example_json_dict.update(
+            {
+                "character_name": character_name,
+                "model_date": self.model_date,
+                "description": description,
+                "combine_docs_chain_kwargs": {"prompt": prompt_template},
+                "llm": {"model": model, "temperature": 0.8},
+                "vectorstore": {
+                    "background": dataset["dialogue"],
+                    "embeddings_model": "text-embedding-ada-002",
+                },
+            }
+        )
 
         self.save_chain_json(character_name, self.model_date, example_json_dict)
         self.deserialize_chain_json(self.character_name, self.model_date)
@@ -304,7 +294,9 @@ class ChainCharacter(Character, ChainJsonManager):
         return f"{character_name}_{self.model_date}"
 
     def save_character(self) -> str:
-        return self.save_chain_json(self.character_name, self.model_date, self.__dict__)
+        ret = self.save_chain_json(self.character_name, self.model_date, self.__dict__)
+        self.deserialize_chain_json(self.character_name, self.model_date)
+        return ret
 
     def add_background(self, input: str) -> None:
         chain_json_data = self.load_chain_json(self.character_name, self.model_date)
@@ -357,34 +349,53 @@ class ChainCharacter(Character, ChainJsonManager):
 
         return charcater_response
 
-    def response(self, query, model=None, prompt=None) -> str:
+    def fake_name_parser(self, response: str) -> str:
+        name_to_replace = {
+            "柯文哲": "柯批",
+            "郭台銘": "我姓郭",
+            "賴清德": "阿德",
+            "侯友宜": "侯侯睏",
+        }
+        removed_real_name_response = response
+        for real_name, fake_name in name_to_replace.items():
+            removed_real_name_response = removed_real_name_response.replace(
+                real_name, fake_name
+            )
+        return removed_real_name_response
+
+    # #
+    def _get_qa_chain(self, model=None, memory=None):
         if not self._is_chain_version_exist(self.character_name, self.model_date):
             self.create_version(model=model)
         # Deserialize the chain JSON
         self.deserialize_chain_json(self.character_name, self.model_date)
 
-        # Load chain JSON text and retrieval dataset path
-        chain_json_text = self.load_chain_json(self.character_name, self.model_date)
-        retrieval_dataset_path = retrieval_dataset_manager.get_dataset_filepath(
-            self.character_name
-        )
-
         # Load data to vector store
-        vectorstore = pass_in_dataset(
-            retrieval_dataset_path, self.vectorstore["embeddings_model"]
+        vectorstore = pass_in_text_as_dataset(
+            self.vectorstore["background"],
+            self.vectorstore["embeddings_model"],
         )
         system_message_template = SystemMessagePromptTemplate.from_template(
-            chain_json_text["combine_docs_chain_kwargs"]["prompt"][
-                "system_message_template"
-            ]
+            self.combine_docs_chain_kwargs["prompt"]["system_message_template"]
         )
 
-        qa_chain = get_chain(
-            vectorstore=vectorstore,
-            system_message_template=system_message_template,
-            model=model if model else self.llm["model"],
-            temperature=self.llm["temperature"],
-        )
+        params = {
+            "vectorstore": vectorstore,
+            "system_message_template": system_message_template,
+            "model": model if model else self.llm["model"],
+            "temperature": self.llm["temperature"],
+            "top_k": self.top_k,
+        }
+
+        if memory:
+            params["memory"] = memory
+
+        qa_chain = get_chain(**params)
+
+        return qa_chain
+
+    def response(self, query, model=None, prompt=None, memory=None) -> str:
+        qa_chain = self._get_qa_chain(model=model, memory=memory)
 
         prompt = (
             str(self.combine_docs_chain_kwargs["prompt"]["default_prompt"])
@@ -393,25 +404,45 @@ class ChainCharacter(Character, ChainJsonManager):
         )
 
         # Perform the query and get the result
-        result = qa_chain(
-            {
-                "question": query + prompt,
-                "chat_history": self.memory["chat_history"],
-            }
-        )
+
+        with get_openai_callback() as cb:
+            result = qa_chain(
+                {
+                    "question": query + prompt,
+                    "chat_history": self.memory["chat_history"],
+                }
+            )
+
+            print("cb:", cb)
+            print("prompt:", cb.prompt_tokens)
+            print("completion:", cb.completion_tokens)
+            print("total:", cb.total_tokens)
+            print("cost:", cb.total_cost)
+
+        removed_real_name_response = self.fake_name_parser(result["answer"])
 
         # Update chat history
-        self.memory["chat_history"].append((query, result["answer"]))
+        self.memory["chat_history"].append((query, removed_real_name_response))
+
+        # summarize chat_history and add to every 3 rounds
+        if len(self.memory["chat_history"]) > 3:
+            print("summarized_memory")
+            summarized_memory = summarize_chat_history(self.memory["chat_history"])
+
+            self.add_background(summarized_memory)
+            self.memory["chat_history"] = []
 
         # Save the character
         self.save_character()
 
-        return result["answer"]
+        return removed_real_name_response
 
 
 if __name__ == "__main__":
-    kp = ChainCharacter(character_name="郭台銘")
-    kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::8BOrPEZL")
+    kp = ChainCharacter(character_name="柯文哲")
+    print("kp_object_original:", kp.__dict__)
+
+    kp.create_version(model="ft:gpt-3.5-turbo-0613:aist::82bfmfPv")
 
     response = kp.response("你好")
     print("response:", response)

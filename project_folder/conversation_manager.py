@@ -1,14 +1,23 @@
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from random import choice
+from typing import List
 
+from langchain.memory import ConversationBufferMemory
 from main import ChainCharacter
 
 
 class AbstractConversationManager(ABC):
-    def __init__(self, speakers=None) -> None:
+    def __init__(
+        self,
+        speakers: List[ChainCharacter] = None,
+        memory=None,
+        dialog_limit: int = None,
+    ) -> None:
         self.speakers = speakers or []
         self.current_speaker_index = 0
+        self.memory = memory
+        self.dialog_limit = dialog_limit
 
     @abstractmethod
     def add_character(self, character_name):
